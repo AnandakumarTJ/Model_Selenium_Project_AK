@@ -1,0 +1,24 @@
+# Maven
+target/
+**/target/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Reports / results
+results/
+**/results/
+reports/
+**/reports/
+
+# Logs
+*.log
+logs/
+**/logs/
+
+# Cucumber
+cucumber-report/
+**/cucumber-report/
+cucumber.json
+rerun.txt

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Cucumber" time="27.301" tests="3" skipped="0" failures="0" errors="0">
+<testcase classname="User Login" name="Verify User Login" time="10.787">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User clicks on Sign In button..........................................passed
+Then User get redirected to Login Page......................................passed
+And User Enters valid Username and Password.................................passed
+Then User Successfully Logged In............................................passed
+]]></system-out>
+</testcase>
+<testcase classname="User Login" name="Verify User Login with Email field Empty" time="8.151">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User clicks on Sign In button..........................................passed
+Then User get redirected to Login Page......................................passed
+When User clicks on Sign In button without valid Input......................passed
+Then User gets Placeholder message on Email.................................passed
+]]></system-out>
+</testcase>
+<testcase classname="User Login" name="Verify User Login with Password field Empty" time="8.217">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User clicks on Sign In button..........................................passed
+Then User get redirected to Login Page......................................passed
+When User clicks on Sign In button without valid Input on Password Field....passed
+Then User gets Placeholder message on Password..............................passed
+]]></system-out>
+</testcase>
+</testsuite>

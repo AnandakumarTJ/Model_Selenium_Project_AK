@@ -1,0 +1,224 @@
+def buildTriggerBy = ''
+pipeline {
+
+    agent { label 'maven-slave'}
+
+    environment {
+                 TOTAL_TESTS_COUNT = '0'
+                 TOTAL_PASS_COUNT = '0'
+                 TOTAL_FAILURES_COUNT = '0'
+                 BUILD_EXECUTION_TIME = ''
+    }
+
+    parameters {
+            choice(name: 'ENVIRONMENT', choices: ['India', 'International'], description: 'Choose the Environment you want to run the tests against')
+            choice(name: 'Test Type', choices: ['Smoke Test','Regression Test','User Accessibility','Subscription','Sanity' ],
+            description: 'Select the Test Type to Start')
+    }
+    stages {
+            stage("Build Start Notification") {
+                steps {
+                    script {
+                            println("Test Started By Automation QA Team")
+                            buildTriggerBy = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
+                    }
+
+                }
+            }
+             stage("Map Env param to Env tags in feature file") {
+                steps {
+                    script {
+                             println("Selected Environment is " + params.ENVIRONMENT)
+                             feature = params.FEATURE
+                             println("Selected Feature is " + params.FEATURE)
+                    }
+                }
+            }
+            stage('Checkout') {
+                steps {
+                    deleteDir()
+                    checkout scm
+                }
+            }
+            stage("Check Environment's Endpoints") {
+                 steps {
+                        script {
+                          def endpointMap = [
+                                             "Base_Url" : params.ENVIRONMENT + "." + "base_url"
+
+                          ]
+                                 for (def key in endpointMap.keySet()) {
+                                                         def tmp_var_1 = endpointMap[key] + "="
+                                                         def tmp_var_2
+                                                         if (key?.contains('Username') || key?.contains('Password')) {
+                                                             tmp_var_2 = sh(
+                                                                     returnStdout: true,
+                                                                     script: "grep -i ${tmp_var_1} data/commonData.properties"
+                                                             )
+                                                         } else {
+                                                             tmp_var_2 = sh(
+                                                                     returnStdout: true,
+                                                                     script: "grep -i ${tmp_var_1} environment/env.properties"
+                                                             )
+                                                         }
+                                                         def value = tmp_var_2.replaceAll(tmp_var_1, "")
+                                                         endpointMap[key] = value
+                                                     }
+
+                                                     for (def key in endpointMap.keySet()) {
+                                                         println("Value of " + params.ENVIRONMENT + "." + key + " is " + endpointMap[key])
+                                                     }
+                        }
+                 }
+            }
+            stage('Prepare') {
+                 steps {
+                     git credentialsId: 'jenkins-example', url: 'https://github.com/AnandakumarTJ/model_selenium_project.git', branch: "master"
+                       script {
+                                pom = readMavenPom file: 'pom.xml'
+                       }
+                 }
+            }
+            stage('Override Settings properties') {
+                  steps {
+                        script {
+                            def settingsFileContents = readFile file: "config/settings.properties"
+                            settingsFileContents = settingsFileContents.replace("environment=India", "environment=${ENVIRONMENT}")
+                            writeFile file: "config/settings.properties", text: settingsFileContents
+                            println("Selected Environment is " + settingsFileContents)
+                        }
+                  }
+            }
+            stage('Compile test code') {
+                 steps {
+                        script {
+                             // sh "rm -rf /home/centos/.m2/repository/"
+                              sh "mvn compile"
+                        }
+                 }
+            }
+            stage('Regression Test') {
+               when { expression { feature == "RegressionTest"} }
+                   steps {
+                          script {
+                                  def dynamicTag = "@${params.ENVIRONMENT} and @Regression"
+                                  //Runs the test runner
+                                  sh "mvn -Dtest=RegressionTest test -DfailIfNoTests=false '-Dcucumber.filter.tags=${dynamicTag}'"
+
+                                  //Publishes the Cucumber test results visible in the tests section of Jenkins Blue Ocean view
+                                  junit allowEmptyResults: true, testResults: '**/reporting/cucumber-reports/RegressionTest.xml'
+                          }
+               }
+            }
+            stage('Smoke Test') {
+               when { expression { feature == "SmokeTest"} }
+                   steps {
+                           script {
+                                    def dynamicTag = "@${params.ENVIRONMENT} and @Smoke"
+                                    //Runs the test runner
+                                    sh "mvn -Dtest=SmokeTest test -DfailIfNoTests=false '-Dcucumber.filter.tags=${dynamicTag}'"
+
+                                    //Publishes the Cucumber test results visible in the tests section of Jenkins Blue Ocean view
+                                    junit allowEmptyResults: true, testResults: '**/reporting/cucumber-reports/SmokeTest.xml'
+                           }
+                   }
+            }
+            stage('User Accessibility') {
+                           when { expression { feature == "UserAccessibility"} }
+                               steps {
+                                       script {
+                                                def dynamicTag = "@${params.ENVIRONMENT} and @UserAccess"
+                                                //Runs the test runner
+                                                sh "mvn -Dtest=SmokeTest test -DfailIfNoTests=false '-Dcucumber.filter.tags=${dynamicTag}'"
+
+                                                //Publishes the Cucumber test results visible in the tests section of Jenkins Blue Ocean view
+                                                junit allowEmptyResults: true, testResults: '**/reporting/cucumber-reports/UserAccessibility.xml'
+                                       }
+                               }
+                        }
+            stage('Collate Cucumber Reports') {
+                   steps {
+                          script {
+                                //Publishes the Cucumber test results with charts visible in the traditional Jenkins view
+                                cucumber reportTitle: 'Collated Test Report',
+                                        fileIncludePattern: '**/reporting/cucumberOtherreports/*.json',
+                                        trendsLimit: 10
+                          }
+                   }
+            }
+    }
+    post {
+           success {
+                    script {
+                            getExecutionCount()
+                            getExecutionTime()
+                            slackSend tokenCredentialId: 'qa_team_slack_token',
+                                      botUser: true,
+                                      color: 'good',
+                                      channel: '#amz-test-reports',
+                                      message: "*Build Success* - Test completed for " + feature + " in " + "${params.ENVIRONMENT}; please verify cucumber report \n Build Trigger By: " + buildTriggerBy.userName +" \n Total Tests: " + TOTAL_TESTS_COUNT + "\n Passed: " + TOTAL_PASS_COUNT + "\n Failed: " + TOTAL_FAILURES_COUNT + "\n Automation execution time -: " + BUILD_EXECUTION_TIME + "\n Build Url: <${env.RUN_DISPLAY_URL}>"
+
+                            uploadCucumberReport()
+                    }
+           }
+           unstable {
+                     script {
+                            getExecutionCount()
+                            getExecutionTime()
+                            slackSend tokenCredentialId: 'qa_team_slack_token',
+                                      color: 'warning',
+                                      message: "*Build Unstable* - Test completed for " + feature + " in " + "${params.ENVIRONMENT}; please verify cucumber report \n Build Trigger By: " + buildTriggerBy.userName +" \n Total Tests: " + TOTAL_TESTS_COUNT + "\n Passed: " + TOTAL_PASS_COUNT + "\n Failed: " + TOTAL_FAILURES_COUNT + "\n Automation execution time -: " + BUILD_EXECUTION_TIME + "\n Build Url: <${env.RUN_DISPLAY_URL}>",
+                                      channel: '##amz-test-reports'
+                            uploadCucumberReport()
+                     }
+           }
+           failure {
+                     script {
+                             getExecutionCount()
+                             getExecutionTime()
+                             slackSend tokenCredentialId: 'qa_team_slack_token',
+                                       color: 'danger',
+                                       message: "*Build Failed* - Test completed for " + feature + " in " + "${params.ENVIRONMENT}; please verify cucumber report \n Build Trigger By: " + buildTriggerBy.userName +" \n Total Tests: " + TOTAL_TESTS_COUNT + "\n Passed: " + TOTAL_PASS_COUNT + "\n Failed: " + TOTAL_FAILURES_COUNT + "\n Automation execution time -: " + BUILD_EXECUTION_TIME + "\n Build Url: <${env.RUN_DISPLAY_URL}>" ,
+                                       channel: '##amz-test-reports'
+                             uploadCucumberReport()
+                     }
+           }
+
+    }
+}
+def getExecutionCount() {
+        if (fileExists("${env.WORKSPACE}/reporting/cucumber-reports/${feature}.xml")) {
+            def fileSize = findFiles(glob: "reporting/cucumber-reports/${feature}.xml")[0].length
+                 if (fileSize != 0L) {
+                     // Collecting the test execution counts from execution output xml file (i.e. Cucumber.xml)
+                     TOTAL_TESTS_COUNT += sh(returnStdout: true, script: "cat reporting/cucumber-reports/${feature}.xml | grep -o 'tests=\"[^\"]*' | sed 's/tests=\"//g'").toString().trim().toInteger()
+                     TOTAL_FAILURES_COUNT += sh(returnStdout: true, script: "cat reporting/cucumber-reports/${feature}.xml | grep -o 'failures=\"[^\"]*' | sed 's/failures=\"//g'").toString().trim().toInteger()
+                     TOTAL_PASS_COUNT = TOTAL_TESTS_COUNT - TOTAL_FAILURES_COUNT
+                 }
+                 else {
+                             println("Result XML file is not generated for ${feature} testRunner. So deleting the json file from the cucumberOtherreports folder")
+                             sh "rm -rf ${env.WORKSPACE}/reporting/cucumberOtherreports/${feature}.json"
+                             sh "rm -rf ${env.WORKSPACE}/reporting/cucumber-reports/${feature}.xml"
+                 }
+        }
+        else {
+              println("${env.WORKSPACE}/reporting/cucumber-reports/${feature}.xml file is not exists. So, It could be maven execution or Jenkins issue. Please check and retrigger the build again.")
+        }
+
+}
+def getExecutionTime() {
+    def buildStartTime = currentBuild.startTimeInMillis
+    def buildEndTime = System.currentTimeMillis()
+    def buildExecutionTimeMillis = buildEndTime - buildStartTime
+
+    def buildTookHours = (int) (buildExecutionTimeMillis / 3600000.0)
+    def buildTookMinutes = (int) ((buildExecutionTimeMillis % 3600000) / 60000.0)
+    BUILD_EXECUTION_TIME = "${buildTookHours} hr ${buildTookMinutes} mins"
+}
+def uploadCucumberReport(){
+    if (fileExists("${env.WORKSPACE}/reporting/pretty/${feature}/cucumber-html-reports/overview-features.html")){
+        slackUploadFile channel: '##amz-test-reports', credentialId: 'qa_team_slack_token', filePath: '${env.WORKSPACE}/reporting/pretty/${feature}/cucumber-html-reports/overview-features.html', initialComment: 'Test Report'}
+    else {
+        println("Test Report not present in the folder")
+    }
+}

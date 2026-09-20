@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="Cucumber" time="35.921" tests="5" skipped="0" failures="0" errors="0">
+<testcase classname="Search Product in ShopKart" name="Verify Returned Search Products - Example #1.1" time="8.296">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User Searches for a "Shirt"............................................passed
+Then Searched Product "Shirt" list displayed in UI..........................passed
+]]></system-out>
+</testcase>
+<testcase classname="Search Product in ShopKart" name="Verify Returned Search Products - Example #1.2" time="7.38">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User Searches for a "Bag"..............................................passed
+Then Searched Product "Bag" list displayed in UI............................passed
+]]></system-out>
+</testcase>
+<testcase classname="Search Product in ShopKart" name="Verify Returned Search Products - Example #1.3" time="5.523">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User Searches for a "Dress"............................................passed
+Then Searched Product "Dress" list displayed in UI..........................passed
+]]></system-out>
+</testcase>
+<testcase classname="Search Product in ShopKart" name="Verify the Price Limit of Searched Product - Example #1.1" time="7.526">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User Searches for a "Shirt"............................................passed
+Then Searched Product "Shirt" list displayed in UI..........................passed
+And Verify the Returned product amount with "5000"..........................passed
+]]></system-out>
+</testcase>
+<testcase classname="Search Product in ShopKart" name="Verify the Price Limit of Searched Product - Example #1.2" time="7.011">
+<system-out><![CDATA[
+Given a shopKart website opened.............................................passed
+When User Searches for a "Bag"..............................................passed
+Then Searched Product "Bag" list displayed in UI............................passed
+And Verify the Returned product amount with "5000"..........................passed
+]]></system-out>
+</testcase>
+</testsuite>
